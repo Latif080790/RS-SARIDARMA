@@ -1,0 +1,202 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║             QUICK START GUIDE - SISTEM ANALISIS VOLUME                  ║
+║                     RS Sari Dharma Project                               ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+
+📋 LANGKAH CEPAT (3 LANGKAH SAJA!)
+═══════════════════════════════════════════════════════════════════════════
+
+┌─ LANGKAH 1: Buka Template ────────────────────────────────────────────┐
+│                                                                        │
+│  File: Volume_dari_Gambar_TEMPLATE.xlsx                               │
+│                                                                        │
+│  Template sudah siap dengan:                                          │
+│  ✓ Sheet STRUKTUR - untuk pekerjaan struktur beton                    │
+│  ✓ Sheet ARSITEKTUR - untuk pekerjaan finishing                       │
+│  ✓ Sheet MEP - untuk pekerjaan elektrikal & mekanikal                 │
+│  ✓ Sheet PANDUAN - tutorial lengkap cara isi                          │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+
+
+┌─ LANGKAH 2: Isi Data Volume ─────────────────────────────────────────┐
+│                                                                        │
+│  1. Buka gambar DED dengan viewer apapun                              │
+│     (AutoCAD, DWG TrueView, DraftSight, dll)                          │
+│                                                                        │
+│  2. Baca dimensi dari gambar                                          │
+│                                                                        │
+│  3. Isi ke template Excel:                                            │
+│                                                                        │
+│     Contoh:                                                            │
+│     ┌──────────────────────────────────────────────────────┐         │
+│     │ Item    : Kolom K1 (20x30)                           │         │
+│     │ Lokasi  : As A1 s/d A5                               │         │
+│     │ Panjang : 0.20 m                                     │         │
+│     │ Lebar   : 0.30 m                                     │         │
+│     │ Tinggi  : 4.00 m                                     │         │
+│     │ Jumlah  : 5                                          │         │
+│     │ Volume  : (otomatis) = 1.20 m³                       │         │
+│     └──────────────────────────────────────────────────────┘         │
+│                                                                        │
+│  4. Setelah selesai, SIMPAN DENGAN NAMA:                              │
+│     Volume_dari_Gambar.xlsx  (TANPA kata TEMPLATE)                    │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+
+
+┌─ LANGKAH 3: Jalankan Analisis ───────────────────────────────────────┐
+│                                                                        │
+│  Buka Command Prompt / PowerShell di folder project                   │
+│                                                                        │
+│  Ketik:                                                                │
+│                                                                        │
+│    python run_analisis_volume.py                                      │
+│                                                                        │
+│  Atau double-click file: run_analisis_volume.py                       │
+│                                                                        │
+│  Script akan:                                                          │
+│  ✓ Membaca volume dari file Anda                                      │
+│  ✓ Membaca volume dari RAB                                            │
+│  ✓ Membandingkan keduanya                                             │
+│  ✓ Membuat laporan Excel lengkap                                      │
+│                                                                        │
+│  Hasil: LAPORAN_PERBANDINGAN_VOLUME.xlsx                              │
+│                                                                        │
+└────────────────────────────────────────────────────────────────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+📊 ISI LAPORAN
+═══════════════════════════════════════════════════════════════════════════
+
+Laporan Excel berisi 4 sheet:
+
+1. RINGKASAN
+   • Overview semua kategori
+   • Statistik match/selisih
+   • Status overall
+
+2. STRUKTUR
+   • Perbandingan detail item struktur
+   • Volume gambar vs RAB
+   • Selisih dan statusnya
+
+3. ARSITEKTUR
+   • Perbandingan detail item arsitektur
+   • Volume gambar vs RAB
+   • Selisih dan statusnya
+
+4. MEP
+   • Perbandingan detail item MEP
+   • Volume gambar vs RAB
+   • Selisih dan statusnya
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+🎨 COLOR CODING
+═══════════════════════════════════════════════════════════════════════════
+
+🟢 HIJAU     = MATCH (selisih < 5%) - OK!
+🟡 KUNING    = SELISIH KECIL (5-10%) - Review jika perlu
+🔴 MERAH     = SELISIH BESAR (>10%) atau item tidak ditemukan - ⚠ PERLU CEK
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+💡 TIPS PENTING
+═══════════════════════════════════════════════════════════════════════════
+
+✓ Gunakan satuan METER untuk semua dimensi
+✓ Perhatikan skala gambar saat membaca
+✓ Check semua lantai/elevasi
+✓ Baca detail untuk spesifikasi
+✓ Jika ragu, beri catatan di kolom "Rumus/Cara Hitung"
+✓ Volume akan otomatis terhitung (ada formula Excel)
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+❓ TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════
+
+Q: Error "File tidak ditemukan"?
+A: Pastikan Anda sudah simpan dengan nama: Volume_dari_Gambar.xlsx
+
+Q: Volume tidak terhitung?
+A: Check apakah ada formula di kolom Volume. Seharusnya: =D*E*F*G
+
+Q: Item tidak ter-match?
+A: Normal! Script menggunakan fuzzy matching. Selama similarity > 60% akan match.
+
+Q: Hasil berbeda jauh?
+A: Check satuan (meter vs cm), jumlah item, dan dimensi dari gambar.
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+📞 SUPPORT
+═══════════════════════════════════════════════════════════════════════════
+
+Jika ada masalah:
+1. Baca README.md untuk dokumentasi lengkap
+2. Check sheet PANDUAN di template Excel
+3. Review error message di terminal
+4. Hubungi tim IT/Engineering
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+✅ CHECKLIST
+═══════════════════════════════════════════════════════════════════════════
+
+Sebelum mulai, pastikan:
+
+□ Python 3.7+ terinstall
+□ Library sudah terinstall (pandas, openpyxl)
+□ File RAB ada di folder rab/
+□ Template Excel sudah di-generate
+□ Gambar DED bisa dibuka dengan viewer
+
+Setelah isi template:
+
+□ Semua item pekerjaan sudah diinput
+□ Dimensi sudah benar (dalam meter)
+□ Jumlah sudah dihitung
+□ File disimpan dengan nama: Volume_dari_Gambar.xlsx
+□ File ada di folder root project
+
+Ready untuk analisis:
+
+□ Jalankan: python run_analisis_volume.py
+□ Tunggu proses selesai
+□ Buka file: LAPORAN_PERBANDINGAN_VOLUME.xlsx
+□ Review hasil perbandingan
+□ Investigasi item dengan status MERAH
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+
+SELAMAT MENGGUNAKAN SISTEM ANALISIS VOLUME!
+
+Sistem ini dibuat untuk memudahkan Quality Control volume pekerjaan
+dan memastikan kesesuaian antara gambar DED dengan RAB.
+
+Happy analyzing! 🚀
+
+
+═══════════════════════════════════════════════════════════════════════════
+                        RS Sari Dharma - 2026
+═══════════════════════════════════════════════════════════════════════════
