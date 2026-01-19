@@ -1,0 +1,2 @@
+{"timestamp": "2026-01-20T01:25:44.200171", "level": "ERROR", "logger": "FileValidatorTest", "message": "File not found: non_existent.dxf", "category": "file_validation"}
+{"timestamp": "2026-01-20T01:25:44.200573", "level": "ERROR", "logger": "FileValidatorTest", "message": "Invalid extension: D:\\2. NATA_PROJECTAPP\\Github_RS.Sari Darma\\RS-SARIDARMA\\analisis_volume\\file_validator.py", "category": "file_validation"}
