@@ -1,7 +1,0 @@
-2026-01-20 01:21:38 | INFO     | TestApp | info:148 | Application started
-2026-01-20 01:21:38 | DEBUG    | TestApp | debug:143 | Debug information
-2026-01-20 01:21:38 | WARNING  | TestApp | warning:153 | This is a warning
-2026-01-20 01:21:38 | ERROR    | TestApp | error:166 | File not found
-2026-01-20 01:21:38 | INFO     | TestApp | info:148 | Operation: grid_detection | Status: completed | Duration: 123.45ms
-2026-01-20 01:21:38 | INFO     | TestApp | info:148 | File processed: test.dxf | SUCCESS | 150 items | 2500ms
-2026-01-20 01:21:38 | ERROR    | TestApp | error:166 | Validation failed: DXFValidator | invalid_format | Missing required layer | File: test.dxf

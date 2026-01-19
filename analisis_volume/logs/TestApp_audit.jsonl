@@ -1,9 +1,0 @@
-{"timestamp": "2026-01-20T01:21:38.580355", "level": "INFO", "logger": "TestApp", "message": "Application started"}
-{"timestamp": "2026-01-20T01:21:38.580618", "level": "DEBUG", "logger": "TestApp", "message": "Debug information"}
-{"timestamp": "2026-01-20T01:21:38.580727", "level": "WARNING", "logger": "TestApp", "message": "This is a warning"}
-{"timestamp": "2026-01-20T01:21:38.581075", "level": "ERROR", "logger": "TestApp", "message": "File not found", "file_path": "/test/file.dxf", "category": "file_io"}
-{"timestamp": "2026-01-20T01:21:38.581297", "level": "INFO", "logger": "TestApp", "message": "Operation: grid_detection | Status: completed | Duration: 123.45ms"}
-{"timestamp": "2026-01-20T01:21:38.581328", "level": "OPERATION", "logger": "TestApp", "message": "Operation: grid_detection | Status: completed | Duration: 123.45ms", "operation": "grid_detection", "status": "completed", "duration_ms": 123.45, "grids_found": 63}
-{"timestamp": "2026-01-20T01:21:38.583191", "level": "INFO", "logger": "TestApp", "message": "File processed: test.dxf | SUCCESS | 150 items | 2500ms"}
-{"timestamp": "2026-01-20T01:21:38.583227", "level": "FILE_PROCESSED", "logger": "TestApp", "message": "File processed: test.dxf | SUCCESS | 150 items | 2500ms", "file_path": "test.dxf", "file_size_bytes": 5242880, "file_size_mb": 5.0, "processing_time_ms": 2500, "items_found": 150, "success": true}
-{"timestamp": "2026-01-20T01:21:38.583519", "level": "ERROR", "logger": "TestApp", "message": "Validation failed: DXFValidator | invalid_format | Missing required layer | File: test.dxf", "validator": "DXFValidator", "error_type": "invalid_format", "details": "Missing required layer", "category": "validation"}
