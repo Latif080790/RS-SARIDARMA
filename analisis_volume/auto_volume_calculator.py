@@ -1,6 +1,12 @@
 """
 Auto Volume Calculator dari File DXF
 Otomatis identifikasi item pekerjaan dan hitung volume dari geometri DXF
+
+Refactored with modular components (Priority #10):
+- GridDetector: Grid reference detection
+- VoidDetector: Void/hole detection in polylines
+- HeightDetector: Height extraction from layer names
+- ItemAggregator: Multi-key aggregation by location
 """
 
 import re
@@ -14,6 +20,24 @@ try:
 except ImportError:
     from text_utils import clean_text, parse_abbreviation, detect_category
 
+# Import dimension parser (Priority #7)
+try:
+    from .dimension_parser import DimensionParser
+except ImportError:
+    from dimension_parser import DimensionParser
+
+# Import modular components (Priority #10)
+try:
+    from .grid_detector import GridDetector
+    from .void_detector import VoidDetector
+    from .height_detector import HeightDetector
+    from .item_aggregator import ItemAggregator
+except ImportError:
+    from grid_detector import GridDetector
+    from void_detector import VoidDetector
+    from height_detector import HeightDetector
+    from item_aggregator import ItemAggregator
+
 
 class AutoVolumeCalculator:
     """Class untuk auto-calculate volume dari data DXF"""
@@ -21,6 +45,15 @@ class AutoVolumeCalculator:
     def __init__(self, dxf_data: Dict):
         self.dxf_data = dxf_data
         self.items = []
+        
+        # ✅ Priority #10: Initialize modular components
+        self.grid_detector = GridDetector()
+        
+        # ✅ Priority #3: Store detected grid references from drawing
+        self.grid_references = {}  # {'A': x_position, 'B': x_position, '1': y_position, etc}
+        
+        # ✅ Priority #7: Initialize dimension parser for robust regex
+        self.dimension_parser = DimensionParser()
         
         # ========== EXTENDED KEYWORDS (MEP ADDED) ==========
         self.keywords = {
@@ -68,6 +101,23 @@ class AutoVolumeCalculator:
             'roof': 'Atap',
         }
     
+    def _detect_grid_bubbles(self):
+        """✅ CRITICAL FIX: Detect actual grid bubbles from drawing (delegates to GridDetector)"""
+        texts = self.dxf_data.get('texts', [])
+        result = self.grid_detector.detect_grid_bubbles(texts)
+        
+        # Sync grid_references for backward compatibility
+        self.grid_references = self.grid_detector.get_grid_references()
+        
+        return result
+    
+    def _detect_height_from_context(self, layer: str, position: Tuple[float, float]) -> Optional[float]:
+        """
+        ✅ CRITICAL FIX: Detect height from context (NO HARDCODED DEFAULT!)
+        Delegates to HeightDetector module
+        """
+        return HeightDetector.detect_height_from_context(layer, position)
+    
     def extract_kode_from_text(self, text: str) -> Optional[str]:
         """Ekstrak kode item dari text (K1, K2, B1, B2, P1, dll)"""
         # Pattern untuk kode: K1, K2, B1, B2, P1, P2, S1, S2, PL1, PL2
@@ -108,11 +158,207 @@ class AutoVolumeCalculator:
                 else:
                     return matches[0]
         
-        # Calculate from position if not in text
-        # Assume grid spacing 5000mm = 5m
-        grid_x = chr(65 + int(position[0] / 5000)) if position[0] >= 0 else 'A'
-        grid_y = int(position[1] / 5000) + 1 if position[1] >= 0 else 1
-        return f"{grid_x}{grid_y}"
+        # ✅ CRITICAL FIX: Use proximity-based grid detection
+        if self.grid_references and (self.grid_references.get('x') or self.grid_references.get('y')):
+            return self._find_nearest_grid(position)
+        else:
+            # ⚠️ Fallback: Cannot detect grids from drawing
+            return 'Unknown'
+    
+    def _point_in_polygon(self, point: Tuple[float, float], polygon: List[Tuple[float, float]]) -> bool:
+        """Check if point is inside polygon (delegates to VoidDetector)"""
+        return VoidDetector.point_in_polygon(point, polygon)
+    
+    def _polyline_contains_polyline(self, outer: List[Tuple[float, float]], inner: List[Tuple[float, float]]) -> bool:
+        """Check if outer polyline contains inner polyline (delegates to VoidDetector)"""
+        return VoidDetector.polyline_contains_polyline(outer, inner)
+    
+    def _calculate_polyline_area(self, points: List[Tuple[float, float]]) -> float:
+        """Calculate polygon area (delegates to VoidDetector)"""
+        return VoidDetector.calculate_polyline_area(points)
+    
+    def _detect_voids_in_polyline(self, outer_points: List[Tuple[float, float]], 
+                                   all_polylines: List[Dict]) -> Tuple[float, List[Dict]]:
+        """Detect void polylines inside outer polyline (delegates to VoidDetector)"""
+        return VoidDetector.detect_voids_in_polyline(outer_points, all_polylines)
+    
+    def _extract_all_rectangles(self) -> List[Dict]:
+        """Extract all rectangular geometries (from closed polylines with 4-5 points)"""
+        rectangles = []
+        
+        for polyline in self.dxf_data.get('polylines', []):
+            points = polyline.get('points', [])
+            
+            # Check if it's a rectangle (4 corners + optional closing point)
+            if len(points) in [4, 5]:
+                # Get bounding box
+                x_coords = [p[0] for p in points]
+                y_coords = [p[1] for p in points]
+                
+                min_x, max_x = min(x_coords), max(x_coords)
+                min_y, max_y = min(y_coords), max(y_coords)
+                
+                width = abs(max_x - min_x)
+                height = abs(max_y - min_y)
+                
+                # Skip if too small (likely annotation)
+                if width < 10 or height < 10:  # Less than 10mm
+                    continue
+                
+                center_x = (min_x + max_x) / 2
+                center_y = (min_y + max_y) / 2
+                
+                rectangles.append({
+                    'type': 'rectangle',
+                    'position': (center_x, center_y),
+                    'width': width,
+                    'height': height,
+                    'layer': polyline.get('layer', ''),
+                    'points': points
+                })
+        
+        return rectangles
+    
+    def _extract_all_circles(self) -> List[Dict]:
+        """Extract all circular geometries"""
+        circles = []
+        
+        for circle in self.dxf_data.get('circles', []):
+            radius = circle.get('radius', 0)
+            
+            # Skip if too small (likely annotation)
+            if radius < 5:  # Less than 5mm radius
+                continue
+            
+            circles.append({
+                'type': 'circle',
+                'position': circle.get('position', (0, 0)),
+                'radius': radius,
+                'layer': circle.get('layer', '')
+            })
+        
+        return circles
+    
+    def _extract_all_text_labels(self) -> List[Dict]:
+        """Extract all text labels with dimensions and codes"""
+        labels = []
+        
+        for text in self.dxf_data.get('texts', []):
+            raw_content = text.get('content', '')
+            position = text.get('position', (0, 0))
+            layer = text.get('layer', '')
+            
+            if not raw_content or len(raw_content.strip()) < 2:
+                continue
+            
+            # Clean and parse text
+            content = clean_text(raw_content)
+            content = parse_abbreviation(content)
+            
+            if not content or len(content.strip()) < 2:
+                continue
+            
+            # Extract dimensions (✅ Priority #7: now using robust parser)
+            dimensions = self.extract_dimensions_from_text(content, layer=layer)
+            
+            # Extract kode
+            kode = self.extract_kode_from_text(content)
+            
+            # Identify item type
+            item_type = self.identify_item_type(content, layer)
+            
+            if dimensions or kode or item_type != 'unknown':
+                labels.append({
+                    'text': content,
+                    'position': position,
+                    'layer': layer,
+                    'dimensions': dimensions,
+                    'kode': kode,
+                    'item_type': item_type
+                })
+        
+        return labels
+    
+    def _calculate_distance(self, pos1: Tuple[float, float], pos2: Tuple[float, float]) -> float:
+        """Calculate Euclidean distance between two points"""
+        return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
+    
+    def _match_geometry_to_text(self, geometries: List[Dict], labels: List[Dict], 
+                                max_distance: float = 1000.0) -> Tuple[List[Dict], List[Dict], List[Dict]]:
+        """
+        Match geometries to nearest text labels
+        Returns: (matched_pairs, unmatched_geometries, unmatched_labels)
+        """
+        matched_pairs = []
+        unmatched_geometries = []
+        unmatched_labels = []
+        
+        used_geometry_indices = set()
+        used_label_indices = set()
+        
+        # For each label, find nearest geometry
+        for label_idx, label in enumerate(labels):
+            label_pos = label['position']
+            min_distance = float('inf')
+            nearest_geom_idx = None
+            
+            for geom_idx, geom in enumerate(geometries):
+                if geom_idx in used_geometry_indices:
+                    continue
+                
+                geom_pos = geom['position']
+                distance = self._calculate_distance(label_pos, geom_pos)
+                
+                if distance < min_distance and distance <= max_distance:
+                    min_distance = distance
+                    nearest_geom_idx = geom_idx
+            
+            if nearest_geom_idx is not None:
+                matched_pairs.append({
+                    'geometry': geometries[nearest_geom_idx],
+                    'label': label,
+                    'distance': min_distance
+                })
+                used_geometry_indices.add(nearest_geom_idx)
+                used_label_indices.add(label_idx)
+        
+        # Collect unmatched items
+        for geom_idx, geom in enumerate(geometries):
+            if geom_idx not in used_geometry_indices:
+                unmatched_geometries.append(geom)
+        
+        for label_idx, label in enumerate(labels):
+            if label_idx not in used_label_indices:
+                unmatched_labels.append(label)
+        
+        return matched_pairs, unmatched_geometries, unmatched_labels
+    
+    def _warn_unmatched_items(self, unmatched_geometries: List[Dict], unmatched_labels: List[Dict]):
+        """Print warnings for unmatched items"""
+        if unmatched_geometries:
+            print(f"\n  ⚠️  WARNING: Found {len(unmatched_geometries)} geometries WITHOUT labels:")
+            for i, geom in enumerate(unmatched_geometries[:5]):  # Show first 5
+                pos = geom['position']
+                layer = geom['layer']
+                if geom['type'] == 'rectangle':
+                    print(f"    - Rectangle at ({pos[0]:.0f}, {pos[1]:.0f}) | {geom['width']:.0f}x{geom['height']:.0f} | Layer: {layer}")
+                elif geom['type'] == 'circle':
+                    print(f"    - Circle at ({pos[0]:.0f}, {pos[1]:.0f}) | r={geom['radius']:.0f} | Layer: {layer}")
+            if len(unmatched_geometries) > 5:
+                print(f"    ... and {len(unmatched_geometries) - 5} more")
+        
+        if unmatched_labels:
+            print(f"\n  ⚠️  WARNING: Found {len(unmatched_labels)} labels WITHOUT nearby geometry:")
+            for i, label in enumerate(unmatched_labels[:5]):  # Show first 5
+                pos = label['position']
+                text = label['text'][:30]  # Truncate long text
+                print(f"    - '{text}' at ({pos[0]:.0f}, {pos[1]:.0f}) | Layer: {label['layer']}")
+            if len(unmatched_labels) > 5:
+                print(f"    ... and {len(unmatched_labels) - 5} more")
+    
+    def _find_nearest_grid(self, position: Tuple[float, float]) -> str:
+        """Find nearest grid reference (delegates to GridDetector)"""
+        return self.grid_detector.find_nearest_grid(position)
     
     def identify_lantai_from_layer(self, layer: str) -> str:
         """Identifikasi lantai dari layer name"""
@@ -134,55 +380,34 @@ class AutoVolumeCalculator:
         
         return 'Unknown'
     
-    def extract_dimensions_from_text(self, text: str) -> Optional[Tuple[float, float, float]]:
+    def extract_dimensions_from_text(self, text: str, layer: str = '') -> Optional[Tuple[float, float, float]]:
         """
-        Ekstrak dimensi dari teks
-        Contoh: "K1 (20x30)" → (0.20, 0.30, None)
-                "BALOK 15/25" → (0.15, 0.25, None)
-                "KOLOM 30x40 H=400" → (0.30, 0.40, 4.00)
+        ✅ Priority #7: Robust dimension extraction with smart unit detection
+        
+        Ekstrak dimensi dari teks dengan berbagai format
+        Contoh: 
+            "K1 (20x30)" → (0.20, 0.30, None)
+            "K1 (200x300)" → (0.20, 0.30, None)  # Smart: large numbers = mm
+            "BALOK 15/25" → (0.15, 0.25, None)
+            "KOLOM 30x40 H=400" → (0.30, 0.40, 4.00)
+            "K1 0.2x0.3" → (0.20, 0.30, None)  # Decimal = meters
+            "200x300mm" → (0.20, 0.30, None)  # Explicit units
+            "20 x 30 cm" → (0.20, 0.30, None)  # Spaced with units
+        
+        Args:
+            text: Text to parse
+            layer: Layer name for context (helps unit detection)
+        
+        Returns:
+            Tuple of (width, length, height) in meters, or None
         """
-        text_lower = text.lower()
-        dimensions = []
+        # Use robust dimension parser (Priority #7)
+        result = self.dimension_parser.parse(text, context=layer)
         
-        # Pattern 1: 20x30 atau 20×30
-        pattern1 = r'(\d+)\s*[xX×]\s*(\d+)'
-        matches = re.findall(pattern1, text)
-        if matches:
-            for match in matches:
-                dim1 = float(match[0]) / 100  # Convert cm to m
-                dim2 = float(match[1]) / 100
-                dimensions.extend([dim1, dim2])
+        if result:
+            return result
         
-        # Pattern 2: 15/25 (format balok)
-        pattern2 = r'(\d+)\s*/\s*(\d+)'
-        matches = re.findall(pattern2, text)
-        if matches:
-            for match in matches:
-                dim1 = float(match[0]) / 100
-                dim2 = float(match[1]) / 100
-                dimensions.extend([dim1, dim2])
-        
-        # Pattern 3: h=400, H=4.00 (tinggi)
-        pattern3 = r'[hH]\s*[=:]\s*(\d+\.?\d*)'
-        matches = re.findall(pattern3, text)
-        if matches:
-            height = float(matches[0])
-            if height > 10:  # Assume cm
-                height = height / 100
-            dimensions.append(height)
-        
-        # Pattern 4: t=12, tebal=12
-        pattern4 = r't(?:ebal)?\s*[=:]\s*(\d+\.?\d*)'
-        matches = re.findall(pattern4, text_lower)
-        if matches:
-            thickness = float(matches[0])
-            if thickness > 1:  # Assume cm
-                thickness = thickness / 100
-            dimensions.append(thickness)
-        
-        if len(dimensions) >= 2:
-            return tuple(dimensions[:3]) if len(dimensions) >= 3 else tuple(dimensions + [None])
-        
+        # Fallback: No dimensions found
         return None
     
     def identify_item_type(self, text: str, layer: str = '') -> str:
@@ -206,30 +431,35 @@ class AutoVolumeCalculator:
         """Hitung luas untuk dinding, plat, dll"""
         return length * width * count
     
-    def calculate_volume_from_polyline(self, polyline: Dict, thickness: float = 0.12) -> float:
-        """Hitung volume dari polyline (untuk plat lantai)"""
+    def calculate_volume_from_polyline(self, polyline: Dict, thickness: float = 0.12, 
+                                       all_polylines: List[Dict] = None) -> float:
+        """Hitung volume dari polyline (untuk plat lantai) dengan void detection"""
         try:
             points = polyline['points']
             if len(points) < 3:
                 return 0.0
             
-            # Calculate area using Shoelace formula
-            area = 0.0
-            n = len(points)
-            for i in range(n):
-                j = (i + 1) % n
-                area += points[i][0] * points[j][1]
-                area -= points[j][0] * points[i][1]
-            area = abs(area) / 2.0
-            
-            # Convert to square meters if needed
-            if area > 100000:  # Probably in mm²
-                area = area / 1000000
-            elif area > 1000:  # Probably in cm²
-                area = area / 10000
-            
-            volume = area * thickness
-            return volume
+            # Use void detection if all_polylines provided
+            if all_polylines and len(all_polylines) > 1:
+                net_area, voids = self._detect_voids_in_polyline(points, all_polylines)
+                
+                if voids:
+                    print(f"    ✓ Detected {len(voids)} void(s), net area: {net_area:.2f} m²")
+                
+                volume = net_area * thickness
+                return volume
+            else:
+                # Original calculation without void detection
+                area = self._calculate_polyline_area(points)
+                
+                # Convert to square meters if needed
+                if area > 100000:  # Probably in mm²
+                    area = area / 1000000
+                elif area > 1000:  # Probably in cm²
+                    area = area / 10000
+                
+                volume = area * thickness
+                return volume
         except Exception as e:
             print(f"    Warning: Error calculating polyline volume - {e}")
             return 0.0
@@ -291,8 +521,8 @@ class AutoVolumeCalculator:
             item_type = self.identify_item_type(content, layer)
             
             if item_type != 'unknown':
-                # Extract dimensions from text
-                dimensions = self.extract_dimensions_from_text(content)
+                # Extract dimensions from text (✅ Priority #7: now using robust parser)
+                dimensions = self.extract_dimensions_from_text(content, layer=layer)
                 
                 if dimensions:
                     # Extract kode dan grid
@@ -375,7 +605,7 @@ class AutoVolumeCalculator:
         return dimension_values
     
     def process_polylines_as_plat(self):
-        """Process polylines sebagai plat lantai"""
+        """Process polylines sebagai plat lantai with void detection"""
         print("\n→ Processing polylines as plat...")
         
         polylines = self.dxf_data.get('polylines', [])
@@ -388,7 +618,9 @@ class AutoVolumeCalculator:
             if any(keyword in layer.lower() for keyword in ['plat', 'slab', 'lantai', 'floor', 'dak']):
                 # Assume 12cm thickness for plat
                 thickness = 0.12
-                volume = self.calculate_volume_from_polyline(polyline, thickness)
+                
+                # Calculate volume WITH void detection (pass all polylines)
+                volume = self.calculate_volume_from_polyline(polyline, thickness, polylines)
                 
                 if volume > 0:
                     lantai = self.identify_lantai_from_layer(layer)
@@ -425,8 +657,13 @@ class AutoVolumeCalculator:
             
             # Check if layer contains kolom/column keywords
             if any(keyword in layer.lower() for keyword in ['kolom', 'column', 'col', 'pile']):
-                # Assume 4m height for kolom
-                height = 4.0
+                # ⚠️ CRITICAL FIX: Remove hardcoded height!
+                # Try to detect height from nearby vertical dimension or layer name
+                height = self._detect_height_from_context(layer, circle.get('position', (0, 0)))
+                if not height:
+                    print(f"  ⚠️ WARNING: Cannot detect height for circle at {circle.get('position')}, skipping...")
+                    continue
+                
                 volume = self.calculate_volume_from_circle(circle, height)
                 
                 if volume > 0:
@@ -462,28 +699,128 @@ class AutoVolumeCalculator:
         print(f"  ✓ Found {kolom_count} kolom items from circles")
     
     def aggregate_similar_items(self):
-        """Aggregate items yang sama untuk mendapatkan jumlah total"""
-        print("\n→ Aggregating similar items...")
+        """✅ CRITICAL FIX: Aggregate dengan breakdown per LOKASI (delegates to ItemAggregator)"""
+        self.items = ItemAggregator.aggregate_similar_items(self.items)
+    
+    def process_geometry_first_approach(self):
+        """
+        NEW: Geometry-first approach to prevent missing items
+        Extract ALL geometries first, then match with text labels
+        """
+        print("\n→ Processing with Geometry-First approach...")
         
-        aggregated = {}
+        # Step 1: Extract all geometries
+        rectangles = self._extract_all_rectangles()
+        circles = self._extract_all_circles()
+        all_geometries = rectangles + circles
         
-        for item in self.items:
-            # Ensure all dimensions have values (not None)
-            panjang = item.get('panjang') or 0
-            lebar = item.get('lebar') or 0
-            tinggi = item.get('tinggi') or 0
+        print(f"  ✓ Found {len(rectangles)} rectangles, {len(circles)} circles")
+        
+        # Step 2: Extract all text labels
+        labels = self._extract_all_text_labels()
+        print(f"  ✓ Found {len(labels)} text labels with dimensions/codes")
+        
+        if not all_geometries:
+            print("  ⚠️  No geometries detected, skipping geometry-first approach")
+            return
+        
+        # Step 3: Match geometries to text labels
+        matched_pairs, unmatched_geometries, unmatched_labels = self._match_geometry_to_text(
+            all_geometries, labels, max_distance=1000.0  # 1000mm = 1m tolerance
+        )
+        
+        print(f"  ✓ Matched {len(matched_pairs)} geometry-label pairs")
+        
+        # Step 4: Process matched pairs
+        processed_count = 0
+        for pair in matched_pairs:
+            geom = pair['geometry']
+            label = pair['label']
             
-            # Create key based on item name and dimensions
-            key = f"{item['item']}_{panjang:.3f}_{lebar:.3f}_{tinggi:.3f}"
+            # Get common attributes
+            layer = geom['layer']
+            position = geom['position']
+            lantai = self.identify_lantai_from_layer(layer)
+            grid = self._find_nearest_grid(position)
             
-            if key in aggregated:
-                aggregated[key]['jumlah'] += item.get('jumlah', 1)
-                aggregated[key]['volume'] += item.get('volume', 0)
-            else:
-                aggregated[key] = item.copy()
+            # Determine item type from label or layer
+            item_type = label.get('item_type', 'unknown')
+            if item_type == 'unknown':
+                item_type = self.identify_item_type('', layer)
+            
+            # Get dimensions: prefer label dimensions, fallback to geometry
+            dimensions = label.get('dimensions')
+            kode = label.get('kode', '')
+            
+            if geom['type'] == 'rectangle':
+                # Convert mm to m
+                width = geom['width'] / 1000 if geom['width'] > 10 else geom['width']
+                height = geom['height'] / 1000 if geom['height'] > 10 else geom['height']
+                
+                # If label has dimensions, use those (more accurate)
+                if dimensions and len(dimensions) >= 2:
+                    panjang, lebar = dimensions[0], dimensions[1]
+                    tinggi = dimensions[2] if len(dimensions) > 2 else None
+                else:
+                    # Use geometry dimensions
+                    panjang, lebar = width, height
+                    tinggi = None
+                
+                # Detect height from context if needed
+                if not tinggi and item_type in ['balok', 'kolom', 'sloof']:
+                    tinggi = self._detect_height_from_context(layer, position)
+                
+                # Calculate volume
+                if tinggi:
+                    volume = panjang * lebar * tinggi
+                    
+                    self.items.append({
+                        'item': label['text'],
+                        'kode': kode,
+                        'kategori': item_type,
+                        'layer': layer,
+                        'lantai': lantai,
+                        'grid': grid,
+                        'panjang': panjang,
+                        'lebar': lebar,
+                        'tinggi': tinggi,
+                        'volume': volume,
+                        'count': 1,
+                        'source': 'geometry-first'
+                    })
+                    processed_count += 1
+            
+            elif geom['type'] == 'circle':
+                # Circle geometry (kolom bulat)
+                radius = geom['radius'] / 1000 if geom['radius'] > 10 else geom['radius']
+                diameter = radius * 2
+                
+                # Detect height
+                height = self._detect_height_from_context(layer, position)
+                if height:
+                    area = math.pi * radius * radius
+                    volume = area * height
+                    
+                    self.items.append({
+                        'item': label['text'],
+                        'kode': kode,
+                        'kategori': item_type if item_type != 'unknown' else 'kolom',
+                        'layer': layer,
+                        'lantai': lantai,
+                        'grid': grid,
+                        'panjang': diameter,
+                        'lebar': diameter,
+                        'tinggi': height,
+                        'volume': volume,
+                        'count': 1,
+                        'source': 'geometry-first'
+                    })
+                    processed_count += 1
         
-        self.items = list(aggregated.values())
-        print(f"  ✓ Aggregated to {len(self.items)} unique items")
+        print(f"  ✓ Processed {processed_count} items from geometry-first approach")
+        
+        # Step 5: Warn about unmatched items
+        self._warn_unmatched_items(unmatched_geometries, unmatched_labels)
     
     def calculate_all_volumes(self) -> List[Dict]:
         """Main method: Calculate semua volume dari DXF data"""
@@ -491,16 +828,24 @@ class AutoVolumeCalculator:
         print("AUTO VOLUME CALCULATION FROM DXF")
         print("="*70)
         
-        # Step 1: Process texts and dimensions
+        # Step 0: ✅ Detect grid references from drawing (CRITICAL FIX)
+        has_grids = self._detect_grid_bubbles()
+        if not has_grids:
+            print("  ⚠️ WARNING: No grid bubbles detected - grid assignments may be inaccurate!")
+        
+        # Step 1: NEW - Geometry-First Approach (HIGH PRIORITY FIX)
+        self.process_geometry_first_approach()
+        
+        # Step 2: Process texts and dimensions (legacy fallback)
         self.process_texts_and_dimensions()
         
-        # Step 2: Process polylines as plat
+        # Step 3: Process polylines as plat
         self.process_polylines_as_plat()
         
-        # Step 3: Process circles as kolom
+        # Step 4: Process circles as kolom (legacy fallback)
         self.process_circles_as_kolom()
         
-        # Step 4: Aggregate similar items
+        # Step 5: Aggregate similar items
         self.aggregate_similar_items()
         
         print("\n" + "="*70)

@@ -108,9 +108,61 @@ class VolumeComparator:
         print("="*70)
         return self.rab_data
     
-    def fuzzy_match_items(self, item1: str, item2: str) -> float:
-        """Hitung similarity antara dua item name"""
+    def _is_critical_material(self, item: str) -> bool:
+        """✅ Priority #8: Detect critical materials that need high matching threshold"""
+        item_lower = str(item).lower()
+        
+        # Critical materials that must match accurately
+        critical_patterns = [
+            'beton k-',           # Beton with K grade (K-225, K-300, K-350, etc)
+            'beton ready mix',   # Ready mix concrete
+            'beton fc',           # Beton with fc (concrete strength)
+            'besi diameter',      # Rebar with diameter
+            'besi d',             # Besi D10, D13, D16, etc
+            'besi ulir',          # Rebar (ulir)
+            'besi polos',         # Plain bar
+            'tulangan',           # Reinforcement
+            'wiremesh',           # Wire mesh
+            'kawat',              # Wire
+            'semen',              # Cement
+            'pasir',              # Sand
+            'split',              # Gravel
+            'keramik',            # Ceramic
+            'granit',             # Granite
+            'marmer',             # Marble
+            'pipa pvc',           # PVC pipe (with diameter/schedule)
+            'kabel nyyhy',        # Cable with specs
+            'kabel nyy',          # Cable NYY
+            'ac split',           # AC with BTU/PK
+            'pompa',              # Pump with capacity
+        ]
+        
+        for pattern in critical_patterns:
+            if pattern in item_lower:
+                return True
+        
+        return False
+    
+    def _get_required_threshold(self, item: str) -> float:
+        """✅ Priority #8: Get required similarity threshold based on material type"""
+        if self._is_critical_material(item):
+            return 0.90  # 90% for critical materials (beton K-xxx, besi dia, etc)
+        else:
+            return 0.85  # 85% for standard materials (was 60%)
+    
+    def fuzzy_match_items(self, item1: str, item2: str, check_threshold: bool = True) -> float:
+        """✅ Priority #8: Enhanced fuzzy matching with material-specific thresholds
+        
+        Args:
+            item1: First item name
+            item2: Second item name
+            check_threshold: If True, return 0 if below threshold (for filtering)
+        
+        Returns:
+            Similarity score (0.0 - 1.0)
+        """
         from difflib import SequenceMatcher
+        import re
         
         item1_clean = str(item1).lower().strip()
         item2_clean = str(item2).lower().strip()
@@ -119,14 +171,39 @@ class VolumeComparator:
         if item1_clean == item2_clean:
             return 1.0
         
-        # Check if one contains the other
-        if item1_clean in item2_clean or item2_clean in item1_clean:
-            return 0.8
+        # ✅ Enhanced: Check for key attribute matches in critical materials
+        # For critical materials, check if key specs match (K-grade, diameter, etc)
+        if self._is_critical_material(item1):
+            # Extract key specs (K-225, D13, 3x2.5mm, etc)
+            specs1 = set(re.findall(r'k-?\d+|d\s*\d+|fc\s*\d+|\d+x\d+\.?\d*\s*mm|\d+/\d+"', item1_clean))
+            specs2 = set(re.findall(r'k-?\d+|d\s*\d+|fc\s*\d+|\d+x\d+\.?\d*\s*mm|\d+/\d+"', item2_clean))
+            
+            # If key specs don't match, lower similarity significantly
+            if specs1 and specs2 and not specs1.intersection(specs2):
+                # Different specs = different material (e.g., K-225 vs K-300, D13 vs D16)
+                base_similarity = 0.5  # Force below threshold
+            else:
+                # Check if one contains the other
+                if item1_clean in item2_clean or item2_clean in item1_clean:
+                    base_similarity = 0.92  # High score for containment with matching specs
+                else:
+                    # Use sequence matcher
+                    base_similarity = SequenceMatcher(None, item1_clean, item2_clean).ratio()
+        else:
+            # Standard materials: more lenient
+            if item1_clean in item2_clean or item2_clean in item1_clean:
+                base_similarity = 0.88  # Good score for containment
+            else:
+                # Use sequence matcher
+                base_similarity = SequenceMatcher(None, item1_clean, item2_clean).ratio()
         
-        # Use sequence matcher
-        similarity = SequenceMatcher(None, item1_clean, item2_clean).ratio()
+        # Apply threshold check if requested
+        if check_threshold:
+            required_threshold = self._get_required_threshold(item1)
+            if base_similarity < required_threshold:
+                return 0.0  # Below threshold = not a match
         
-        return similarity
+        return base_similarity
     
     def compare_volumes(self, category: str) -> pd.DataFrame:
         """Bandingkan volume gambar vs RAB untuk kategori tertentu"""
@@ -147,14 +224,14 @@ class VolumeComparator:
             vol_gambar = float(gambar_row['Volume']) if pd.notna(gambar_row['Volume']) else 0
             satuan_gambar = gambar_row['Satuan'] if pd.notna(gambar_row['Satuan']) else ''
             
-            # Cari match di RAB
+            # Cari match di RAB (✅ Priority #8: now using enhanced matching)
             best_match = None
-            best_similarity = 0.6  # Threshold minimum
+            best_similarity = 0.0  # Start from 0, threshold applied in fuzzy_match_items
             
             if not rab_df.empty:
                 for _, rab_row in rab_df.iterrows():
-                    similarity = self.fuzzy_match_items(item_gambar, rab_row['item'])
-                    if similarity > best_similarity:
+                    similarity = self.fuzzy_match_items(item_gambar, rab_row['item'], check_threshold=True)
+                    if similarity > best_similarity and similarity > 0:
                         best_similarity = similarity
                         best_match = rab_row
             
@@ -162,7 +239,24 @@ class VolumeComparator:
                 vol_rab = float(best_match['volume']) if pd.notna(best_match['volume']) else 0
                 selisih = vol_gambar - vol_rab
                 selisih_persen = (selisih / vol_rab * 100) if vol_rab > 0 else 0
+                
+                # ✅ Priority #8: Add price validation
+                harga_gambar = float(gambar_row.get('Harga Satuan', 0)) if pd.notna(gambar_row.get('Harga Satuan')) else 0
+                harga_rab = float(best_match.get('harga_satuan', 0)) if pd.notna(best_match.get('harga_satuan')) else 0
+                price_diff_pct = 0
+                if harga_rab > 0 and harga_gambar > 0:
+                    price_diff_pct = abs((harga_gambar - harga_rab) / harga_rab * 100)
+                
+                # Status with warnings
                 status = 'MATCH'
+                
+                # ✅ Priority #8: Warn if similarity < 90% for critical materials
+                if self._is_critical_material(item_gambar) and best_similarity < 0.90:
+                    status = 'MATCH ⚠️ REVIEW (Critical material <90%)'
+                
+                # ✅ Priority #8: Warn if price difference > 20%
+                if price_diff_pct > 20:
+                    status = f'MATCH ⚠️ PRICE DIFF {price_diff_pct:.0f}%'
                 
                 if abs(selisih_persen) > 10:
                     status = 'SELISIH BESAR'
@@ -198,9 +292,9 @@ class VolumeComparator:
             for _, rab_row in rab_df.iterrows():
                 item_rab = rab_row['item']
                 
-                # Check if already matched
+                # Check if already matched (✅ Priority #8: use threshold checking)
                 already_matched = any(
-                    self.fuzzy_match_items(item_rab, comp['Item']) > 0.6
+                    self.fuzzy_match_items(item_rab, comp['Item'], check_threshold=True) > 0
                     for comp in comparison
                 )
                 
