@@ -579,7 +579,25 @@ class VolumeTemplateGenerator:
 
 
 if __name__ == "__main__":
-    output_file = r"d:\2. NATA_PROJECTAPP\Github_RS.Sari Darma\RS-SARIDARMA\Volume_dari_Gambar_TEMPLATE.xlsx"
+    import sys
+    import os
+    
+    # Get project root
+    project_root = r"d:\2. NATA_PROJECTAPP\Github_RS.Sari Darma\RS-SARIDARMA"
+    output_dir = os.path.join(project_root, "output", "templates")
+    
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Check if V2 argument passed
+    use_v2 = len(sys.argv) > 1 and sys.argv[1] == "v2"
+    
+    if use_v2:
+        output_file = os.path.join(output_dir, "Volume_dari_Gambar_TEMPLATE_V2.xlsx")
+        print("Generating Enhanced Template V2...")
+    else:
+        output_file = os.path.join(output_dir, "Volume_dari_Gambar_TEMPLATE.xlsx")
+        print("Generating Template V1...")
     
     generator = VolumeTemplateGenerator(output_file)
     generator.generate()

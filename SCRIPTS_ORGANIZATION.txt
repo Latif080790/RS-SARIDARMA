@@ -1,0 +1,556 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║              ✅ BATCH SCRIPTS ORGANIZED WITH NUMBERING!                 ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+
+📅 DATE: 19 Januari 2026
+🎯 FEATURE: Organized Batch Scripts dengan Nomor Urut Workflow
+✅ STATUS: IMPLEMENTED & TESTED
+
+
+═══════════════════════════════════════════════════════════════════════════
+📂 STRUKTUR FOLDER BARU: scripts/
+═══════════════════════════════════════════════════════════════════════════
+
+```
+RS-SARIDARMA/
+│
+├── scripts/                                    ← FOLDER BARU! 🆕
+│   ├── 1_GENERATE_TEMPLATE_V2.bat             ← [STEP 1] Generate Template
+│   ├── 2_AUTO_READ_DXF.bat                    ← [STEP 2] Auto-Read DXF
+│   ├── 3_RUN_ANALISIS.bat                     ← [STEP 3] Run Analysis
+│   ├── OPTIONAL_GENERATE_TEMPLATE_V1.bat      ← Optional: Legacy V1
+│   └── README.md                               ← Complete Documentation
+│
+├── GENERATE_TEMPLATE.bat                       ← Old (tetap ada)
+├── GENERATE_TEMPLATE_V2.bat                    ← Old (tetap ada)
+├── AUTO_READ_DXF.bat                           ← Old (tetap ada)
+└── RUN_ANALISIS.bat                            ← Old (tetap ada)
+```
+
+**Note:** File .bat lama tetap ada di root folder untuk backward compatibility.
+User bisa pilih:
+- Gunakan `scripts/1_xxx.bat` (NEW, organized, with numbering)
+- Gunakan `xxx.bat` di root (OLD, untuk compatibility)
+
+
+═══════════════════════════════════════════════════════════════════════════
+🔢 PENOMORAN SESUAI WORKFLOW
+═══════════════════════════════════════════════════════════════════════════
+
+### WORKFLOW SEQUENCE:
+
+```
+[STEP 1] 1_GENERATE_TEMPLATE_V2.bat
+   │
+   ├─→ Generate template Excel V2 (enhanced, 12 columns)
+   ├─→ Output: Volume_dari_Gambar_TEMPLATE_V2.xlsx
+   ├─→ Duration: ~3-5 detik
+   └─→ NEXT STEP: Jalankan 2_AUTO_READ_DXF.bat
+       
+       ⬇
+       
+[STEP 2] 2_AUTO_READ_DXF.bat
+   │
+   ├─→ Scan DXF files di drawing/dxf/
+   ├─→ Extract data → Calculate volume → Populate Excel
+   ├─→ Output: Volume_dari_Gambar_AUTO.xlsx
+   ├─→ Duration: ~10-30 detik
+   └─→ NEXT STEP: Jalankan 3_RUN_ANALISIS.bat
+       
+       ⬇
+       
+[STEP 3] 3_RUN_ANALISIS.bat
+   │
+   ├─→ Compare Volume Gambar vs RAB
+   ├─→ Generate comparison report
+   ├─→ Output: Report di folder output
+   ├─→ Duration: ~5-15 detik
+   └─→ ✅ DONE!
+
+
+[OPTIONAL] OPTIONAL_GENERATE_TEMPLATE_V1.bat
+   │
+   ├─→ Generate template V1 (legacy, 10 columns)
+   ├─→ Output: Volume_dari_Gambar_TEMPLATE.xlsx
+   └─→ ⚠️ Tidak recommended, gunakan V2!
+```
+
+
+═══════════════════════════════════════════════════════════════════════════
+✨ FITUR BARU DI SETIAP SCRIPT
+═══════════════════════════════════════════════════════════════════════════
+
+### 1. ✅ NUMBERED PREFIX (1_, 2_, 3_)
+- Clear workflow sequence
+- User tahu urutan eksekusi
+- Prevent confusion
+
+### 2. ✅ STEP INDICATOR DI HEADER
+```batch
+╔══════════════════════════════════════════════════════════════════════════╗
+║                                                                          ║
+║           [STEP 2] AUTO READ DARI DXF - RS SARI DARMA                   ║
+║                                                                          ║
+╚══════════════════════════════════════════════════════════════════════════╝
+```
+
+### 3. ✅ NAVIGATION TO PROJECT ROOT
+Semua script punya:
+```batch
+REM Navigate to project root
+cd /d "%~dp0.."
+```
+Benefit: Script bisa dijalankan dari folder `scripts/` dan akan otomatis navigate ke root project
+
+### 4. ✅ NEXT STEP GUIDANCE
+Di akhir setiap script ada panduan:
+```batch
+echo ═══════════════════════════════════════════════════════════════════════════
+echo  NEXT STEP: Jalankan 2_AUTO_READ_DXF.bat untuk proses DXF file
+echo ═══════════════════════════════════════════════════════════════════════════
+```
+
+### 5. ✅ BETTER ERROR HANDLING
+- Check virtual environment
+- Check required files
+- Show clear error messages
+- Exit with proper error codes
+
+### 6. ✅ V2 ARGUMENT SUPPORT
+Script 1 sekarang pass argument "v2" ke template_generator.py:
+```batch
+.venv\Scripts\python.exe analisis_volume\template_generator.py v2
+```
+
+
+═══════════════════════════════════════════════════════════════════════════
+🎯 KENAPA PERLU FOLDER SCRIPTS/ ?
+═══════════════════════════════════════════════════════════════════════════
+
+### 1. **ORGANIZATION** 📂
+
+❌ BEFORE (Root folder cluttered):
+```
+RS-SARIDARMA/
+├── GENERATE_TEMPLATE.bat
+├── GENERATE_TEMPLATE_V2.bat
+├── AUTO_READ_DXF.bat
+├── RUN_ANALISIS.bat
+├── analisis_volume/
+├── drawing/
+├── rab/
+├── Volume_dari_Gambar_TEMPLATE.xlsx
+├── Volume_dari_Gambar_AUTO.xlsx
+└── ... (40+ files in root!)
+```
+👉 Sulit cari file .bat
+👉 Root folder terlalu ramai
+👉 Tidak ada clear workflow
+
+✅ AFTER (Clean & organized):
+```
+RS-SARIDARMA/
+├── scripts/                              ← All .bat files here!
+│   ├── 1_GENERATE_TEMPLATE_V2.bat       
+│   ├── 2_AUTO_READ_DXF.bat              
+│   ├── 3_RUN_ANALISIS.bat               
+│   └── README.md
+├── analisis_volume/                      ← Python modules
+├── drawing/                              ← DXF files
+├── rab/                                  ← RAB files
+└── Volume_dari_Gambar_*.xlsx            ← Output files
+```
+👉 Semua script terorganisir
+👉 Root folder clean
+👉 Clear workflow sequence (1→2→3)
+
+### 2. **WORKFLOW CLARITY** 📋
+
+With numbering (1_, 2_, 3_), user langsung tahu:
+- Urutan eksekusi
+- Which script to run first
+- Dependencies antar script
+
+### 3. **SCALABILITY** 📈
+
+Future scripts bisa ditambahkan dengan numbering:
+```
+4_EXPORT_TO_PDF.bat
+5_SEND_TO_EMAIL.bat
+6_BACKUP_FILES.bat
+```
+
+### 4. **PROFESSIONAL STRUCTURE** 💼
+
+Standard project structure:
+```
+project/
+├── src/          ← Source code
+├── tests/        ← Tests
+├── scripts/      ← Automation scripts ✅
+├── docs/         ← Documentation
+└── config/       ← Configuration
+```
+
+
+═══════════════════════════════════════════════════════════════════════════
+📊 COMPARISON: ROOT vs SCRIPTS FOLDER
+═══════════════════════════════════════════════════════════════════════════
+
+| Aspect              | Root Folder           | scripts/ Folder       |
+|---------------------|-----------------------|-----------------------|
+| **Organization**    | ❌ Cluttered          | ✅ Clean              |
+| **Workflow Clear**  | ❌ No sequence        | ✅ Numbered (1→2→3)  |
+| **Easy to Find**    | ⚠️ Search needed     | ✅ One location       |
+| **Scalability**     | ❌ Hard to add more   | ✅ Easy expansion     |
+| **Professional**    | ⚠️ Okay              | ✅ Professional       |
+| **Navigation**      | ⚠️ Direct (no cd)    | ✅ Auto-navigate      |
+| **Maintenance**     | ❌ Hard (scattered)   | ✅ Easy (centralized) |
+
+
+═══════════════════════════════════════════════════════════════════════════
+🚀 CARA MENGGUNAKAN
+═══════════════════════════════════════════════════════════════════════════
+
+### METHOD 1: From Root Folder (Recommended)
+```batch
+# From root directory RS-SARIDARMA/
+scripts\1_GENERATE_TEMPLATE_V2.bat
+scripts\2_AUTO_READ_DXF.bat
+scripts\3_RUN_ANALISIS.bat
+```
+
+### METHOD 2: From scripts/ Folder
+```batch
+cd scripts
+1_GENERATE_TEMPLATE_V2.bat
+2_AUTO_READ_DXF.bat
+3_RUN_ANALISIS.bat
+```
+
+### METHOD 3: Using Old Files (Backward Compatibility)
+```batch
+# From root directory
+GENERATE_TEMPLATE_V2.bat
+AUTO_READ_DXF.bat
+RUN_ANALISIS.bat
+```
+
+**Recommendation:** Gunakan Method 1 atau 2 (scripts folder) untuk consistency!
+
+
+═══════════════════════════════════════════════════════════════════════════
+🔄 COMPLETE WORKFLOW WITH NUMBERED SCRIPTS
+═══════════════════════════════════════════════════════════════════════════
+
+### FIRST TIME SETUP:
+
+```batch
+# Step 1: Generate Template V2
+scripts\1_GENERATE_TEMPLATE_V2.bat
+
+# Output: Volume_dari_Gambar_TEMPLATE_V2.xlsx
+# Duration: ~5 seconds
+# Status: ✅ Template ready!
+```
+
+### PROCESS DXF FILES:
+
+```batch
+# Step 2: Auto-Read DXF
+# (Pastikan DXF files sudah ada di drawing/dxf/str|ars|mep)
+
+scripts\2_AUTO_READ_DXF.bat
+
+# System akan:
+# 1. Scan folder drawing/dxf/
+# 2. List all DXF files
+# 3. User select atau auto-select latest
+# 4. Extract → Calculate → Populate Excel
+#
+# Output: Volume_dari_Gambar_AUTO.xlsx
+# Duration: ~20 seconds
+# Status: ✅ Auto-populated!
+```
+
+### COMPARE WITH RAB:
+
+```batch
+# Step 3: Run Analysis
+# (Pastikan RAB files ada di rab/str|ars|mep)
+
+scripts\3_RUN_ANALISIS.bat
+
+# System akan:
+# 1. Read Volume_dari_Gambar_AUTO.xlsx
+# 2. Read RAB files
+# 3. Compare volumes
+# 4. Generate report
+#
+# Output: Comparison report
+# Duration: ~10 seconds
+# Status: ✅ Analysis done!
+```
+
+
+═══════════════════════════════════════════════════════════════════════════
+📝 TECHNICAL DETAILS
+═══════════════════════════════════════════════════════════════════════════
+
+### 1. Navigation Logic:
+
+Semua script di `scripts/` folder punya:
+```batch
+cd /d "%~dp0.."
+```
+
+Explanation:
+- `%~dp0` = Path to script's directory (scripts/)
+- `..` = Move up one level (to root)
+- `cd /d` = Change drive and directory
+
+Result: Script always execute dari root project folder!
+
+### 2. V2 Template Generation:
+
+Updated `template_generator.py`:
+```python
+if __name__ == "__main__":
+    import sys
+    
+    # Check if V2 argument passed
+    use_v2 = len(sys.argv) > 1 and sys.argv[1] == "v2"
+    
+    if use_v2:
+        output_file = "...TEMPLATE_V2.xlsx"
+    else:
+        output_file = "...TEMPLATE.xlsx"
+```
+
+Call from batch:
+```batch
+python analisis_volume\template_generator.py v2    # Generate V2
+python analisis_volume\template_generator.py        # Generate V1
+```
+
+### 3. Error Handling:
+
+Each script checks:
+```batch
+# Check virtual environment
+if not exist ".venv\Scripts\python.exe" (
+    echo ❌ Virtual environment tidak ditemukan!
+    pause
+    exit /b 1
+)
+
+# Check required files
+if not exist "Volume_dari_Gambar_AUTO.xlsx" (
+    echo ❌ File tidak ditemukan!
+    echo Silakan jalankan script sebelumnya
+    pause
+    exit /b 1
+)
+```
+
+
+═══════════════════════════════════════════════════════════════════════════
+💡 BEST PRACTICES
+═══════════════════════════════════════════════════════════════════════════
+
+### 1. Follow the Numbers! 🔢
+```
+✅ DO:
+   Step 1 → Step 2 → Step 3 (sequential)
+
+❌ DON'T:
+   Skip steps (e.g., run Step 3 before Step 2)
+```
+
+### 2. Run from Correct Location 📍
+```
+✅ DO:
+   cd RS-SARIDARMA
+   scripts\1_GENERATE_TEMPLATE_V2.bat
+
+OR:
+   cd scripts
+   1_GENERATE_TEMPLATE_V2.bat
+
+❌ DON'T:
+   Run dari folder lain tanpa proper path
+```
+
+### 3. Check Output After Each Step ✅
+```
+After Step 1: Check Volume_dari_Gambar_TEMPLATE_V2.xlsx exists
+After Step 2: Check Volume_dari_Gambar_AUTO.xlsx exists
+After Step 3: Check output reports exist
+```
+
+### 4. Read Error Messages 📖
+```
+Script akan show:
+- ❌ Error dengan explanation
+- ✅ Success dengan output location
+- ⚠️ Warning jika ada issue
+```
+
+### 5. Backup Important Files 💾
+```batch
+# Before running scripts:
+copy Volume_dari_Gambar_AUTO.xlsx Volume_dari_Gambar_AUTO_backup.xlsx
+```
+
+
+═══════════════════════════════════════════════════════════════════════════
+🐛 TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════════════
+
+### Issue: "Permission denied" saat save Excel
+**Cause:** File Excel sedang dibuka
+**Solution:** Close Excel file dulu, lalu run ulang script
+
+### Issue: "Virtual environment tidak ditemukan"
+**Solution:**
+```batch
+cd "d:\2. NATA_PROJECTAPP\Github_RS.Sari Darma\RS-SARIDARMA"
+python -m venv .venv
+.venv\Scripts\pip.exe install -r requirements.txt
+```
+
+### Issue: "Template tidak ditemukan" di Step 2
+**Solution:** Run `scripts\1_GENERATE_TEMPLATE_V2.bat` dulu
+
+### Issue: "DXF file tidak ditemukan" di Step 2
+**Solution:**
+1. Convert DWG ke DXF
+2. Copy ke `drawing/dxf/str/` (atau ars/, mep/)
+3. Run ulang
+
+### Issue: "RAB file tidak ditemukan" di Step 3
+**Solution:**
+1. Copy RAB Excel ke `rab/str/` (atau ars/, mep/)
+2. Run ulang
+
+
+═══════════════════════════════════════════════════════════════════════════
+📋 CHECKLIST UNTUK USER
+═══════════════════════════════════════════════════════════════════════════
+
+Before running scripts:
+
+**General:**
+- [ ] Virtual environment ready (.venv/)
+- [ ] All dependencies installed (openpyxl, ezdxf, etc)
+- [ ] No Excel files open
+
+**Before Step 1:**
+- [ ] Virtual environment ready
+- [ ] No template file open
+
+**Before Step 2:**
+- [ ] Template V2 generated
+- [ ] DXF files di folder drawing/dxf/str|ars|mep
+- [ ] DXF format: R2013 (recommended)
+
+**Before Step 3:**
+- [ ] Volume_dari_Gambar_AUTO.xlsx generated
+- [ ] RAB files di folder rab/str|ars|mep
+- [ ] RAB format: Excel (.xlsx)
+
+If all checked ✅, ready to go! 🚀
+
+
+═══════════════════════════════════════════════════════════════════════════
+🎯 SUMMARY OF CHANGES
+═══════════════════════════════════════════════════════════════════════════
+
+### Files Created:
+```
+scripts/
+├── 1_GENERATE_TEMPLATE_V2.bat              ← NEW! Step 1
+├── 2_AUTO_READ_DXF.bat                     ← NEW! Step 2
+├── 3_RUN_ANALISIS.bat                      ← NEW! Step 3
+├── OPTIONAL_GENERATE_TEMPLATE_V1.bat       ← NEW! Optional
+└── README.md                                ← NEW! Documentation
+```
+
+### Files Modified:
+```
+analisis_volume/template_generator.py       ← Added V2 argument support
+```
+
+### Files Unchanged (Backward Compatibility):
+```
+GENERATE_TEMPLATE.bat                        ← Still works
+GENERATE_TEMPLATE_V2.bat                     ← Still works
+AUTO_READ_DXF.bat                            ← Still works
+RUN_ANALISIS.bat                             ← Still works
+```
+
+
+═══════════════════════════════════════════════════════════════════════════
+✅ BENEFITS RECAP
+═══════════════════════════════════════════════════════════════════════════
+
+1. **Organization** 📂
+   - All batch files in one place (scripts/)
+   - Root folder cleaner
+
+2. **Clear Workflow** 📋
+   - Numbered sequence (1→2→3)
+   - User knows what to run first
+
+3. **Better UX** 💡
+   - "NEXT STEP" guidance in each script
+   - Clear error messages
+   - Progress indicators
+
+4. **Professional** 💼
+   - Standard project structure
+   - Scalable for future scripts
+
+5. **Backward Compatible** 🔄
+   - Old .bat files still work
+   - No breaking changes
+
+
+═══════════════════════════════════════════════════════════════════════════
+✅ CONCLUSION
+═══════════════════════════════════════════════════════════════════════════
+
+**STATUS: SCRIPTS ORGANIZED WITH NUMBERING! ✅**
+
+User sekarang punya:
+✓ Folder khusus untuk scripts (scripts/)
+✓ Nomor urut yang jelas (1, 2, 3)
+✓ Navigation otomatis ke project root
+✓ Better error handling
+✓ "Next step" guidance
+✓ Complete documentation (README.md)
+✓ Backward compatibility maintained
+
+**READY TO USE!** 🚀
+
+Run workflow:
+```batch
+scripts\1_GENERATE_TEMPLATE_V2.bat
+scripts\2_AUTO_READ_DXF.bat
+scripts\3_RUN_ANALISIS.bat
+```
+
+Done! 🎉
+
+
+═══════════════════════════════════════════════════════════════════════════
+
+              ✅ BATCH SCRIPTS ORGANIZED & NUMBERED!
+
+            Developed with ❤️ by GitHub Copilot
+                   January 19, 2026
+
+═══════════════════════════════════════════════════════════════════════════

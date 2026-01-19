@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from dwg_reader import DXFReader
 from auto_volume_calculator import AutoVolumeCalculator
+from text_utils import detect_category
 from openpyxl import load_workbook
 from openpyxl.styles import PatternFill
 from datetime import datetime
@@ -85,7 +86,9 @@ class DXFToExcelConverter:
                 'mep': []
             }
             
+            # ========== ENHANCED CATEGORY MAPPING (MEP ADDED) ==========
             kategori_mapping = {
+                # Struktur
                 'kolom': 'struktur',
                 'balok': 'struktur',
                 'plat': 'struktur',
@@ -93,18 +96,98 @@ class DXFToExcelConverter:
                 'pondasi': 'struktur',
                 'ring': 'struktur',
                 'tangga': 'struktur',
+                'pile': 'struktur',
+                'footing': 'struktur',
+                
+                # Arsitektur
                 'dinding': 'arsitektur',
                 'pintu': 'arsitektur',
                 'jendela': 'arsitektur',
                 'lantai': 'arsitektur',
                 'plafon': 'arsitektur',
                 'atap': 'arsitektur',
+                'window': 'arsitektur',
+                'door': 'arsitektur',
+                'ceiling': 'arsitektur',
+                'wall': 'arsitektur',
+                
+                # MEP - HVAC & AC
+                'ac': 'mep',
+                'hvac': 'mep',
+                'fcu': 'mep',
+                'ahu': 'mep',
+                'vrv': 'mep',
+                'ducting': 'mep',
+                'duct': 'mep',
+                'grille': 'mep',
+                'diffuser': 'mep',
+                'exhaust': 'mep',
+                'return air grille': 'mep',
+                'supply air diffuser': 'mep',
+                'supply air grille': 'mep',
+                'fresh air diffuser': 'mep',
+                'exhaust grille': 'mep',
+                
+                # MEP - Plumbing
+                'pipa': 'mep',
+                'pipe': 'mep',
+                'plumbing': 'mep',
+                'hydrant': 'mep',
+                'sprinkler': 'mep',
+                'gas': 'mep',
+                'medis': 'mep',
+                'air bersih': 'mep',
+                'air kotor': 'mep',
+                'sanitasi': 'mep',
+                'pompa': 'mep',
+                'tangki': 'mep',
+                
+                # MEP - Electrical
+                'kabel': 'mep',
+                'cable': 'mep',
+                'panel': 'mep',
+                'electrical': 'mep',
+                'listrik': 'mep',
+                'stop kontak': 'mep',
+                'outlet': 'mep',
+                'lampu': 'mep',
+                'lighting': 'mep',
+                'saklar': 'mep',
+                'switch': 'mep',
+                'power': 'mep',
+                'mdp': 'mep',
+                'sdp': 'mep',
+                
+                # MEP - Fire System
+                'fire': 'mep',
+                'alarm': 'mep',
+                'smoke detector': 'mep',
             }
+            # =========================================================
+            
+            # ========== ADVANCED CATEGORY DETECTION ==========
+            # Use folder path + layer + text for better classification
+            file_path = self.dxf_file
             
             for item in self.items:
-                kategori = item.get('kategori', 'unknown')
-                group = kategori_mapping.get(kategori, 'arsitektur')
+                item_text = item.get('item', '')
+                layer_name = item.get('layer', '')
+                
+                # Try advanced detection first (uses folder + layer + text + abbreviation)
+                detected_cat, confidence = detect_category(file_path, layer_name, item_text)
+                
+                if detected_cat and confidence >= 40:
+                    # Use detected category if confident enough
+                    group = detected_cat
+                    print(f"  ✓ Advanced detection: '{item_text[:30]}...' → {group.upper()} (confidence: {confidence}%)")
+                else:
+                    # Fallback to keyword mapping
+                    kategori = item.get('kategori', 'unknown')
+                    group = kategori_mapping.get(kategori.lower(), 'arsitektur')
+                    print(f"  • Keyword mapping: '{item_text[:30]}...' → {group.upper()}")
+                
                 grouped_items[group].append(item)
+            # =================================================
             
             # Populate each sheet
             sheets_map = {
@@ -133,22 +216,32 @@ class DXFToExcelConverter:
                 # Populate items (WITH ENHANCED COLUMNS)
                 row = start_row
                 for idx, item in enumerate(items, 1):
-                    ws.cell(row=row, column=1).value = idx  # No
-                    ws.cell(row=row, column=2).value = item.get('kode', '')  # Kode
-                    ws.cell(row=row, column=3).value = item.get('item', '')  # Item
-                    ws.cell(row=row, column=4).value = item.get('lantai', '')  # Lantai
-                    ws.cell(row=row, column=5).value = item.get('grid', '')  # Lokasi/Grid
-                    ws.cell(row=row, column=6).value = item.get('panjang', 0)  # Panjang
-                    ws.cell(row=row, column=7).value = item.get('lebar', 0)  # Lebar
-                    ws.cell(row=row, column=8).value = item.get('tinggi', 0) if item.get('tinggi') else ''  # Tinggi
-                    ws.cell(row=row, column=9).value = item.get('jumlah', 1)  # Jumlah
-                    ws.cell(row=row, column=10).value = item.get('satuan', 'm3')  # Satuan
-                    ws.cell(row=row, column=11).value = item.get('volume', 0)  # Volume
-                    ws.cell(row=row, column=12).value = f"Auto: {item.get('method', 'DXF')}"  # Metode
-                    
-                    # Apply green fill to auto-populated rows
-                    for col in range(1, 13):
-                        ws.cell(row=row, column=col).fill = fill_green
+                    # Skip merged cells by checking if cell is merged
+                    try:
+                        # Try to write to cells
+                        ws.cell(row=row, column=1).value = idx  # No
+                        ws.cell(row=row, column=2).value = item.get('kode', '')  # Kode
+                        ws.cell(row=row, column=3).value = item.get('item', '')  # Item
+                        ws.cell(row=row, column=4).value = item.get('lantai', '')  # Lantai
+                        ws.cell(row=row, column=5).value = item.get('grid', '')  # Lokasi/Grid
+                        ws.cell(row=row, column=6).value = item.get('panjang', 0)  # Panjang
+                        ws.cell(row=row, column=7).value = item.get('lebar', 0)  # Lebar
+                        ws.cell(row=row, column=8).value = item.get('tinggi', 0) if item.get('tinggi') else ''  # Tinggi
+                        ws.cell(row=row, column=9).value = item.get('jumlah', 1)  # Jumlah
+                        ws.cell(row=row, column=10).value = item.get('satuan', 'm3')  # Satuan
+                        ws.cell(row=row, column=11).value = item.get('volume', 0)  # Volume
+                        ws.cell(row=row, column=12).value = f"Auto: {item.get('method', 'DXF')}"  # Metode
+                        
+                        # Apply green fill to auto-populated rows
+                        for col in range(1, 13):
+                            try:
+                                ws.cell(row=row, column=col).fill = fill_green
+                            except:
+                                pass  # Skip merged cells
+                    except AttributeError as e:
+                        # Skip this row if it's a merged cell
+                        print(f"    ⚠ Row {row} has merged cells, skipping...")
+                        pass
                     
                     row += 1
                 
@@ -204,8 +297,16 @@ def main():
     base_dir = Path(__file__).parent.parent
     
     dxf_file = base_dir / "drawing" / "ars" / "20251108_Plan RS Sari Dharma.dxf"
-    template_file = base_dir / "Volume_dari_Gambar_TEMPLATE.xlsx"
-    output_file = base_dir / "Volume_dari_Gambar_AUTO.xlsx"
+    template_file = base_dir / "output" / "templates" / "Volume_dari_Gambar_TEMPLATE_V2.xlsx"
+    
+    # Check if V2 template exists, fallback to V1
+    if not template_file.exists():
+        template_file = base_dir / "output" / "templates" / "Volume_dari_Gambar_TEMPLATE.xlsx"
+    
+    output_file = base_dir / "output" / "volumes" / "Volume_dari_Gambar_AUTO.xlsx"
+    
+    # Ensure output directory exists
+    output_file.parent.mkdir(parents=True, exist_ok=True)
     
     # Check if DXF file exists
     if not dxf_file.exists():
@@ -221,7 +322,7 @@ def main():
     # Check if template exists
     if not template_file.exists():
         print(f"\n✗ Template tidak ditemukan: {template_file}")
-        print("\nJalankan dulu: GENERATE_TEMPLATE.bat")
+        print("\nJalankan dulu: scripts\\1_GENERATE_TEMPLATE_V2.bat")
         return False
     
     # Run conversion

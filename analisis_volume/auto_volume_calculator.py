@@ -8,6 +8,12 @@ import math
 from typing import Dict, List, Tuple, Optional
 from collections import defaultdict
 
+# Import text utilities
+try:
+    from .text_utils import clean_text, parse_abbreviation, detect_category
+except ImportError:
+    from text_utils import clean_text, parse_abbreviation, detect_category
+
 
 class AutoVolumeCalculator:
     """Class untuk auto-calculate volume dari data DXF"""
@@ -16,8 +22,9 @@ class AutoVolumeCalculator:
         self.dxf_data = dxf_data
         self.items = []
         
-        # Keywords untuk identifikasi item
+        # ========== EXTENDED KEYWORDS (MEP ADDED) ==========
         self.keywords = {
+            # Struktur
             'kolom': ['kolom', 'column', 'k1', 'k2', 'k3', 'k4', 'col'],
             'balok': ['balok', 'beam', 'b1', 'b2', 'b3', 'b4', 'bm'],
             'plat': ['plat', 'slab', 'lantai', 'floor', 'dak', 'pl'],
@@ -26,7 +33,26 @@ class AutoVolumeCalculator:
             'dinding': ['dinding', 'wall', 'tembok'],
             'ring': ['ring', 'ring balok', 'ring balk'],
             'tangga': ['tangga', 'stair', 'stairs'],
+            
+            # MEP - HVAC & AC
+            'ac': ['ac', 'air conditioner', 'return air grille', 'supply air diffuser', 
+                   'supply air grille', 'fresh air diffuser', 'exhaust grille'],
+            'ducting': ['ducting', 'duct', 'saluran udara'],
+            'grille': ['grille', 'diffuser', 'rag', 'sad', 'sag', 'fad', 'exh', 'eg'],
+            
+            # MEP - Plumbing
+            'pipa': ['pipa', 'pipe', 'pwc', 'swp', 'vwp', 'saluran'],
+            'hydrant': ['hydrant', 'hyd', 'pemadam'],
+            'sprinkler': ['sprinkler', 'spr'],
+            'gas': ['gas', 'medis', 'o2', 'oxygen', 'vac', 'vacuum', 'compressed air'],
+            
+            # MEP - Electrical
+            'kabel': ['kabel', 'cable', 'wire'],
+            'panel': ['panel', 'mdp', 'sdp', 'lp', 'pp', 'distribution'],
+            'lampu': ['lampu', 'lighting', 'light', 'led'],
+            'stop kontak': ['stop kontak', 'sk', 'outlet', 'power outlet'],
         }
+        # ===================================================
         
         # Layer to Lantai mapping
         self.layer_mapping = {
@@ -243,9 +269,20 @@ class AutoVolumeCalculator:
         # Process texts
         text_items = {}
         for text in self.dxf_data.get('texts', []):
-            content = text.get('content', '')
+            raw_content = text.get('content', '')
             layer = text.get('layer', '')
             position = text.get('position', (0, 0))
+            
+            if not raw_content or len(raw_content.strip()) < 2:
+                continue
+            
+            # ========== TEXT CLEANING (NEW) ==========
+            # Clean AutoCAD formatting codes
+            content = clean_text(raw_content)
+            
+            # Parse MEP abbreviations
+            content = parse_abbreviation(content)
+            # =========================================
             
             if not content or len(content.strip()) < 2:
                 continue
@@ -431,12 +468,17 @@ class AutoVolumeCalculator:
         aggregated = {}
         
         for item in self.items:
+            # Ensure all dimensions have values (not None)
+            panjang = item.get('panjang') or 0
+            lebar = item.get('lebar') or 0
+            tinggi = item.get('tinggi') or 0
+            
             # Create key based on item name and dimensions
-            key = f"{item['item']}_{item['panjang']:.3f}_{item['lebar']:.3f}_{item.get('tinggi', 0):.3f}"
+            key = f"{item['item']}_{panjang:.3f}_{lebar:.3f}_{tinggi:.3f}"
             
             if key in aggregated:
-                aggregated[key]['jumlah'] += item['jumlah']
-                aggregated[key]['volume'] += item['volume']
+                aggregated[key]['jumlah'] += item.get('jumlah', 1)
+                aggregated[key]['volume'] += item.get('volume', 0)
             else:
                 aggregated[key] = item.copy()
         

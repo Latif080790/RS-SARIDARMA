@@ -37,34 +37,57 @@ class DXFReader:
     def load_file(self) -> bool:
         """Load dan validasi file DXF"""
         try:
-            # Check if file is actually DXF
-            with open(self.filepath, 'rb') as f:
-                header = f.read(6)
-                if not header.startswith(b'AC10') and not header.startswith(b'AC1'):
-                    print(f"✗ File bukan format DXF yang valid")
-                    print(f"  Silakan convert DWG ke DXF terlebih dahulu")
-                    return False
+            # Try to load with ezdxf directly (more reliable than header check)
+            print(f"📖 Loading file: {self.filepath}")
             
             self.doc = ezdxf.readfile(self.filepath)
             self.msp = self.doc.modelspace()
-            print(f"✓ File DXF berhasil dibaca: {self.filepath}")
-            print(f"  DXF Version: {self.doc.dxfversion}")
+            
+            print(f"✓ File DXF berhasil dibaca!")
+            print(f"  Version: {self.doc.dxfversion}")
+            
+            # Count entities
+            entity_count = len(list(self.msp))
+            print(f"  Entities: {entity_count}")
             
             # Get drawing units
             try:
                 units = self.doc.header.get('$INSUNITS', 0)
                 unit_names = {0: 'Unitless', 1: 'Inches', 2: 'Feet', 4: 'Millimeters', 
                             5: 'Centimeters', 6: 'Meters'}
-                print(f"  Drawing Units: {unit_names.get(units, 'Unknown')}")
+                print(f"  Units: {unit_names.get(units, 'Unknown')}")
             except:
-                pass
+                print(f"  Units: Default")
+            
             return True
+            
+        except ezdxf.DXFStructureError as e:
+            print(f"✗ File bukan format DXF yang valid!")
+            print(f"  Error: {e}")
+            print(f"\n💡 Solusi:")
+            print(f"  1. Pastikan file sudah di-convert dari DWG ke DXF")
+            print(f"  2. Gunakan AutoCAD atau ODA File Converter")
+            print(f"  3. Pilih DXF version: R2013 atau lebih baru")
+            return False
+            
         except IOError as e:
             print(f"✗ Error membaca file: {e}")
-            print(f"  File mungkin corrupt atau format tidak didukung")
+            print(f"  File mungkin tidak ada atau tidak bisa diakses")
             return False
+            
         except Exception as e:
-            print(f"✗ Error membaca file: {e}")
+            print(f"✗ Unexpected error: {e}")
+            print(f"  Type: {type(e).__name__}")
+            
+            # Try to give helpful message based on error
+            error_str = str(e).lower()
+            if 'permission' in error_str:
+                print(f"\n💡 File mungkin sedang dibuka di aplikasi lain")
+            elif 'not found' in error_str or 'no such file' in error_str:
+                print(f"\n💡 File tidak ditemukan, check path dan nama file")
+            else:
+                print(f"\n💡 Coba convert ulang DWG ke DXF dengan version R2013")
+            
             return False
     
     def extract_layers(self) -> List[Dict]:
